@@ -58,6 +58,7 @@ function deobfuscate(encoded: string, key: string): string {
   } catch { return ""; }
 }
 
+// Legacy long-token decoder
 export function decodeCode(code: string): { id: string; username: string; expiresAt: number } | null {
   try {
     const padded = code.replace(/-/g, "+").replace(/_/g, "/");
@@ -68,6 +69,7 @@ export function decodeCode(code: string): { id: string; username: string; expire
   } catch { return null; }
 }
 
+// Generates a short 6-char access code (no confusing chars)
 export function generateShortCode(): string {
   const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
   let code = "";
@@ -79,10 +81,37 @@ export function generateShortCode(): string {
 
 // ─── Cloud KV Helpers ────────────────────────────────────────────────────────
 
+/** Encode any string to URL-safe Base64 so colons/braces in JSON
+ *  don't trigger ASP.NET Request.Path validation (HTTP 400). */
+function encodeSafe(val: string): string {
+  // btoa works on raw binary — we go through UTF-8 bytes first
+  const utf8 = encodeURIComponent(val).replace(/%([0-9A-F]{2})/g, (_, p1) =>
+    String.fromCharCode(parseInt(p1, 16))
+  );
+  const b64 = btoa(utf8);
+  // Make URL-path-safe: replace + → -, / → _, strip trailing =
+  return "b64_" + b64.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+
+/** Decode a value previously encoded with encodeSafe.
+ *  Falls back to returning the original string if not encoded. */
+function decodeSafe(val: string): string {
+  if (!val.startsWith("b64_")) return val;
+  try {
+    let b64 = val.slice(4).replace(/-/g, "+").replace(/_/g, "/");
+    while (b64.length % 4) b64 += "=";
+    const binary = atob(b64);
+    return decodeURIComponent(
+      binary.split("").map(c => "%" + ("00" + c.charCodeAt(0).toString(16)).slice(-2)).join("")
+    );
+  } catch { return val; }
+}
+
 async function writeKV(key: string, value: string): Promise<boolean> {
   try {
+    const safe = encodeSafe(value);
     const res = await fetch(
-      `${API_BASE}/UpdateValue/${APP_KEY}/${key}/${encodeURIComponent(value)}`,
+      `${API_BASE}/UpdateValue/${APP_KEY}/${key}/${safe}`,
       { method: "POST" }
     );
     return res.ok;
@@ -95,8 +124,10 @@ async function readKV(key: string): Promise<string | null> {
     if (!res.ok) return null;
     const text = await res.text();
     if (!text || text === '""' || text === "null" || text.trim() === "") return null;
+    // Strip surrounding double-quotes the API sometimes adds
     const clean = text.startsWith('"') && text.endsWith('"') ? text.slice(1, -1) : text;
-    try { return decodeURIComponent(clean); } catch { return clean; }
+    // Decode Base64 if encoded, else fall back to plain / percent-decoded
+    try { return decodeSafe(clean); } catch { return clean; }
   } catch { return null; }
 }
 
@@ -111,20 +142,17 @@ function saveUsersLocal(users: User[]) {
   localStorage.setItem(USERS_KEY, JSON.stringify(users));
 }
 
+/**
+ * Fetch users from cloud with a timeout.
+ * Falls back to localStorage if cloud is unavailable.
+ */
 export async function fetchUsersFromCloud(): Promise<User[]> {
   try {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 8000);
-
-    const idsRes = await fetch(`${API_BASE}/GetValue/${APP_KEY}/wingobd_user_list`, {
-      signal: controller.signal,
-    }).finally(() => clearTimeout(timer));
-
-    if (!idsRes.ok) return getUsers();
-    const rawIds = await idsRes.text();
-    const cleanIds = rawIds.startsWith('"') && rawIds.endsWith('"') ? rawIds.slice(1, -1) : rawIds;
-    let idsString: string;
-    try { idsString = decodeURIComponent(cleanIds); } catch { idsString = cleanIds; }
+    // readKV has no built-in timeout, so we race it with a 6-second abort
+    const idsString = await Promise.race([
+      readKV("wingobd_user_list"),
+      new Promise<null>((resolve) => setTimeout(() => resolve(null), 6000)),
+    ]);
 
     if (!idsString || idsString === "null" || idsString.trim() === "") return getUsers();
 
@@ -140,9 +168,11 @@ export async function fetchUsersFromCloud(): Promise<User[]> {
     );
 
     const users = usersData.filter((u): u is User => u !== null);
+    // Only update cache if we got real data
     if (users.length > 0) saveUsersLocal(users);
     return users.length > 0 ? users : getUsers();
   } catch {
+    // Network error / timeout → use local cache
     return getUsers();
   }
 }
@@ -168,7 +198,6 @@ export async function createUser(username: string, password: string, plan: User[
     monthly: 30 * 24 * 60 * 60 * 1000,
   };
 
-  // ── Fetch latest users from cloud first
   const users = await fetchUsersFromCloud();
   const exists = users.some(u => u.username.toLowerCase() === username.toLowerCase());
   if (exists) {
@@ -190,20 +219,10 @@ export async function createUser(username: string, password: string, plan: User[
     deviceId: "",
   };
 
-  // ── Save user data to cloud FIRST
-  const userSaved = await writeKV(`wingobd_user_data_${user.id}`, JSON.stringify(user));
-  if (!userSaved) {
-    throw new Error("❌ Cloud save failed! Check your internet connection and try again.");
-  }
-
-  // ── Update user list in cloud
+  await writeKV(`wingobd_user_data_${user.id}`, JSON.stringify(user));
   const activeIds = [...users.map(u => u.id), user.id].join(",");
-  const listSaved = await writeKV("wingobd_user_list", activeIds);
-  if (!listSaved) {
-    throw new Error("❌ Cloud list update failed! User data saved but list may be out of sync.");
-  }
+  await writeKV("wingobd_user_list", activeIds);
 
-  // ── Save locally as cache
   users.push(user);
   saveUsersLocal(users);
   return user;
@@ -214,7 +233,6 @@ export async function resetUserDevice(id: string): Promise<void> {
   const user = users.find(u => u.id === id);
   if (!user) return;
   user.deviceId = "";
-  user.sessionToken = "";
   await writeKV(`wingobd_user_data_${id}`, JSON.stringify(user));
   saveUsersLocal(users.map(u => u.id === id ? user : u));
 }
@@ -250,10 +268,11 @@ export async function extendUser(id: string, plan: User["plan"]): Promise<void> 
   saveUsersLocal(users.map(u => u.id === id ? user : u));
 }
 
-// ─── Session ───────────────────────────────────────────────────────────────
+// ─── Session (localStorage — survives page refresh) ───────────────────────────
 
 export function getSession(): Session | null {
   try {
+    // Migrate from old sessionStorage if present
     const OLD_KEY = SESSION_KEY;
     const fromSS = sessionStorage.getItem(OLD_KEY);
     if (fromSS && !localStorage.getItem(OLD_KEY)) {
@@ -265,12 +284,14 @@ export function getSession(): Session | null {
     if (!raw) return null;
     const session = JSON.parse(raw) as Session;
 
+    // Admin expires after 24 h
     if (session.type === "admin") {
       if (Date.now() - (session._savedAt ?? 0) > 24 * 60 * 60 * 1000) {
         localStorage.removeItem(SESSION_KEY);
         return null;
       }
     }
+    // User expires at their plan's expiresAt
     if (session.type === "user" && session.expiresAt && Date.now() > session.expiresAt) {
       localStorage.removeItem(SESSION_KEY);
       return null;
@@ -308,11 +329,9 @@ export async function login(usernameInput: string, passwordInput: string, device
     }
   }
 
-  // ── ALWAYS fetch from cloud first for login (no local fallback for login!)
-  let users: User[] = [];
-  try {
-    users = await fetchUsersFromCloud();
-  } catch {
+  // ── User check: try cloud first, fall back to local cache
+  let users = await fetchUsersFromCloud();
+  if (users.length === 0) {
     users = getUsers();
   }
 
@@ -340,7 +359,7 @@ export async function login(usernameInput: string, passwordInput: string, device
   };
   setSession(session);
 
-  // Set device ID on first login
+  // Set device ID if not already set (first login)
   if (!user.deviceId) {
     user.deviceId = deviceId;
   }
@@ -352,7 +371,7 @@ export async function login(usernameInput: string, passwordInput: string, device
   return { ok: true, role: "user", session };
 }
 
-// ─── Session Limit Check ───────────────────────────────────────────────────────
+// ─── Device Limit Check ───────────────────────────────────────────────────────
 export async function checkSessionLimit(userId: string, localToken: string): Promise<boolean> {
   try {
     const raw = await readKV(`wingobd_user_data_${userId}`);
