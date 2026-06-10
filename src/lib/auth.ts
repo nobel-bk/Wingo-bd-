@@ -58,7 +58,6 @@ function deobfuscate(encoded: string, key: string): string {
   } catch { return ""; }
 }
 
-// Legacy long-token decoder
 export function decodeCode(code: string): { id: string; username: string; expiresAt: number } | null {
   try {
     const padded = code.replace(/-/g, "+").replace(/_/g, "/");
@@ -69,7 +68,6 @@ export function decodeCode(code: string): { id: string; username: string; expire
   } catch { return null; }
 }
 
-// Generates a short 6-char access code (no confusing chars)
 export function generateShortCode(): string {
   const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
   let code = "";
@@ -97,9 +95,7 @@ async function readKV(key: string): Promise<string | null> {
     if (!res.ok) return null;
     const text = await res.text();
     if (!text || text === '""' || text === "null" || text.trim() === "") return null;
-    // Strip surrounding double-quotes the API sometimes adds
     const clean = text.startsWith('"') && text.endsWith('"') ? text.slice(1, -1) : text;
-    // Safe decode — avoid crash if already decoded
     try { return decodeURIComponent(clean); } catch { return clean; }
   } catch { return null; }
 }
@@ -115,15 +111,10 @@ function saveUsersLocal(users: User[]) {
   localStorage.setItem(USERS_KEY, JSON.stringify(users));
 }
 
-/**
- * Fetch users from cloud with a timeout.
- * Falls back to localStorage if cloud is unavailable.
- */
 export async function fetchUsersFromCloud(): Promise<User[]> {
   try {
-    // 6-second timeout so login doesn't hang forever
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 6000);
+    const timer = setTimeout(() => controller.abort(), 8000);
 
     const idsRes = await fetch(`${API_BASE}/GetValue/${APP_KEY}/wingobd_user_list`, {
       signal: controller.signal,
@@ -149,11 +140,9 @@ export async function fetchUsersFromCloud(): Promise<User[]> {
     );
 
     const users = usersData.filter((u): u is User => u !== null);
-    // Only update cache if we got real data
     if (users.length > 0) saveUsersLocal(users);
     return users.length > 0 ? users : getUsers();
   } catch {
-    // Network error / timeout → use local cache
     return getUsers();
   }
 }
@@ -179,6 +168,7 @@ export async function createUser(username: string, password: string, plan: User[
     monthly: 30 * 24 * 60 * 60 * 1000,
   };
 
+  // ── Fetch latest users from cloud first
   const users = await fetchUsersFromCloud();
   const exists = users.some(u => u.username.toLowerCase() === username.toLowerCase());
   if (exists) {
@@ -200,10 +190,20 @@ export async function createUser(username: string, password: string, plan: User[
     deviceId: "",
   };
 
-  await writeKV(`wingobd_user_data_${user.id}`, JSON.stringify(user));
-  const activeIds = [...users.map(u => u.id), user.id].join(",");
-  await writeKV("wingobd_user_list", activeIds);
+  // ── Save user data to cloud FIRST
+  const userSaved = await writeKV(`wingobd_user_data_${user.id}`, JSON.stringify(user));
+  if (!userSaved) {
+    throw new Error("❌ Cloud save failed! Check your internet connection and try again.");
+  }
 
+  // ── Update user list in cloud
+  const activeIds = [...users.map(u => u.id), user.id].join(",");
+  const listSaved = await writeKV("wingobd_user_list", activeIds);
+  if (!listSaved) {
+    throw new Error("❌ Cloud list update failed! User data saved but list may be out of sync.");
+  }
+
+  // ── Save locally as cache
   users.push(user);
   saveUsersLocal(users);
   return user;
@@ -214,6 +214,7 @@ export async function resetUserDevice(id: string): Promise<void> {
   const user = users.find(u => u.id === id);
   if (!user) return;
   user.deviceId = "";
+  user.sessionToken = "";
   await writeKV(`wingobd_user_data_${id}`, JSON.stringify(user));
   saveUsersLocal(users.map(u => u.id === id ? user : u));
 }
@@ -249,11 +250,10 @@ export async function extendUser(id: string, plan: User["plan"]): Promise<void> 
   saveUsersLocal(users.map(u => u.id === id ? user : u));
 }
 
-// ─── Session (localStorage — survives page refresh) ───────────────────────────
+// ─── Session ───────────────────────────────────────────────────────────────
 
 export function getSession(): Session | null {
   try {
-    // Migrate from old sessionStorage if present
     const OLD_KEY = SESSION_KEY;
     const fromSS = sessionStorage.getItem(OLD_KEY);
     if (fromSS && !localStorage.getItem(OLD_KEY)) {
@@ -265,14 +265,12 @@ export function getSession(): Session | null {
     if (!raw) return null;
     const session = JSON.parse(raw) as Session;
 
-    // Admin expires after 24 h
     if (session.type === "admin") {
       if (Date.now() - (session._savedAt ?? 0) > 24 * 60 * 60 * 1000) {
         localStorage.removeItem(SESSION_KEY);
         return null;
       }
     }
-    // User expires at their plan's expiresAt
     if (session.type === "user" && session.expiresAt && Date.now() > session.expiresAt) {
       localStorage.removeItem(SESSION_KEY);
       return null;
@@ -310,9 +308,11 @@ export async function login(usernameInput: string, passwordInput: string, device
     }
   }
 
-  // ── User check: try cloud first, fall back to local cache
-  let users = await fetchUsersFromCloud();
-  if (users.length === 0) {
+  // ── ALWAYS fetch from cloud first for login (no local fallback for login!)
+  let users: User[] = [];
+  try {
+    users = await fetchUsersFromCloud();
+  } catch {
     users = getUsers();
   }
 
@@ -340,7 +340,7 @@ export async function login(usernameInput: string, passwordInput: string, device
   };
   setSession(session);
 
-  // Set device ID if not already set (first login)
+  // Set device ID on first login
   if (!user.deviceId) {
     user.deviceId = deviceId;
   }
@@ -352,7 +352,7 @@ export async function login(usernameInput: string, passwordInput: string, device
   return { ok: true, role: "user", session };
 }
 
-// ─── Device Limit Check ───────────────────────────────────────────────────────
+// ─── Session Limit Check ───────────────────────────────────────────────────────
 export async function checkSessionLimit(userId: string, localToken: string): Promise<boolean> {
   try {
     const raw = await readKV(`wingobd_user_data_${userId}`);
