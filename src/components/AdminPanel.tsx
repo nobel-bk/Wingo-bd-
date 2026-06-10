@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import {
   getUsers, createUser, deleteUser, toggleUser, extendUser,
-  getAdminPassword, setAdminPassword, clearSession,
+  fetchAdminPassword, setAdminPassword, clearSession,
   fetchUsersFromCloud, resetUserDevice,
   type User,
 } from "../lib/auth";
@@ -131,15 +131,17 @@ export function AdminPanel({ onLogout }: { onLogout: () => void }) {
     addLog(`🗑 Deleted license for "${username}"`);
   };
 
-  const handleChangePass = () => {
-    if (curPass !== getAdminPassword()) { setPassMsg({ ok: false, text: "Current password is incorrect" }); return; }
-    if (newPass.length < 6)             { setPassMsg({ ok: false, text: "New password must be at least 6 characters" }); return; }
-    if (newPass !== confirmPass)         { setPassMsg({ ok: false, text: "Passwords don't match" }); return; }
-    setAdminPassword(newPass);
+  const handleChangePass = async () => {
+    const currentStored = await fetchAdminPassword();
+    if (curPass !== currentStored) { setPassMsg({ ok: false, text: "Current password is incorrect" }); return; }
+    if (newPass.length < 6)        { setPassMsg({ ok: false, text: "New password must be at least 6 characters" }); return; }
+    if (newPass !== confirmPass)   { setPassMsg({ ok: false, text: "Passwords don't match" }); return; }
+    setPassMsg({ ok: true, text: "⏳ Saving to cloud…" });
+    await setAdminPassword(newPass);
     setCurPass(""); setNewPass(""); setConfirmPass("");
-    setPassMsg({ ok: true, text: "✓ Password changed successfully" });
+    setPassMsg({ ok: true, text: "✓ Password changed and synced to all devices!" });
     setTimeout(() => setPassMsg(null), 3000);
-    addLog("🔑 Admin password updated");
+    addLog("🔑 Admin password updated & synced to cloud");
   };
 
   const total    = users.length;
