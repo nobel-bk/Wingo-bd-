@@ -320,7 +320,12 @@ export function analyzeRNG(history: HistoryItem[]): RNGDiagnostics {
       runsZScore: 0,
       detectedType: "INSUFFICIENT DATA",
       predictabilityScore: 50,
-      explanation: "আরএনজি বিশ্লেষণের জন্য অন্তত ১০টি হিস্ট্রি রেকর্ড প্রয়োজন।"
+      explanation: "আরএনজি বিশ্লেষণের জন্য অন্তত ১০টি হিস্ট্রি রেকর্ড প্রয়োজন।",
+      bestLcgA: 0,
+      bestLcgC: 0,
+      lcgFitRate: 0,
+      hotDigit: 0,
+      hotDigitFreq: 0
     };
   }
 
