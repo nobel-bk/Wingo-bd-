@@ -336,6 +336,22 @@ export function AdminPanel({ onLogout }: { onLogout: () => void }) {
                                 {timeLeft(u.expiresAt)}
                               </span>
                             </p>
+                            {/* Device Management and active device info */}
+                            <div style={{ display: "flex", gap: "10px", marginTop: "6px", fontSize: "11px", color: "var(--muted-foreground)", alignItems: "center", flexWrap: "wrap" }}>
+                              <span>🔒 Lock limit: <strong style={{ color: "var(--foreground)" }}>1 Device Max</strong></span>
+                              <span>•</span>
+                              <span>📱 Logged-in: <strong style={{ color: u.deviceId ? "var(--green)" : "var(--text-muted)" }}>{u.deviceId ? "1 Active" : "0 Active"}</strong></span>
+                            </div>
+                            {u.deviceId && (
+                              <div style={{ marginTop: "6px", display: "flex", flexWrap: "wrap", gap: "6px" }}>
+                                <span className="badge badge-violet" style={{ fontSize: "10px", padding: "3px 8px" }}>
+                                  📱 {u.deviceName || "Unknown Device"}
+                                </span>
+                                <span className="badge badge-cyan" style={{ fontSize: "10px", padding: "3px 8px" }} title={u.deviceId}>
+                                  🆔 {u.deviceId.substring(0, 12)}...
+                                </span>
+                              </div>
+                            )}
                             {/* License password chip */}
                             <div style={{ marginTop: 8, display: "inline-flex", alignItems: "center", gap: 8, background: "var(--primary-light)", borderRadius: 8, padding: "4px 10px", border: "1px solid rgba(91,94,244,0.15)" }}>
                               <span style={{ fontSize: 11, color: "var(--text-soft)", fontWeight: 700 }}>Pass:</span>
