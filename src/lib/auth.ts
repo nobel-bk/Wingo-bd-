@@ -15,6 +15,7 @@ export interface User {
   username: string;
   password?: string;
   deviceId?: string;
+  deviceName?: string;
   plan: "daily" | "weekly" | "monthly";
   expiresAt: number;
   createdAt: number;
@@ -41,6 +42,38 @@ export function getLocalDeviceId(): string {
   }
   return devId;
 }
+
+export function getDeviceName(): string {
+  const ua = navigator.userAgent;
+  let os = "Unknown OS";
+  let browser = "Unknown Browser";
+
+  if (ua.indexOf("Windows NT 10.0") !== -1) os = "Windows 10/11";
+  else if (ua.indexOf("Windows NT 6.2") !== -1) os = "Windows 8";
+  else if (ua.indexOf("Windows NT 6.1") !== -1) os = "Windows 7";
+  else if (ua.indexOf("Macintosh") !== -1) os = "macOS";
+  else if (ua.indexOf("iPhone") !== -1) os = "iPhone";
+  else if (ua.indexOf("iPad") !== -1) os = "iPad";
+  else if (ua.indexOf("Android") !== -1) {
+    const match = ua.match(/Android\s([^\s;]+)/);
+    os = match ? `Android ${match[1]}` : "Android";
+  } else if (ua.indexOf("Linux") !== -1) os = "Linux";
+
+  if (ua.indexOf("Chrome") !== -1 && ua.indexOf("Safari") !== -1) {
+    if (ua.indexOf("Edg") !== -1) browser = "Edge";
+    else if (ua.indexOf("OPR") !== -1 || ua.indexOf("Opera") !== -1) browser = "Opera";
+    else browser = "Chrome";
+  } else if (ua.indexOf("Safari") !== -1 && ua.indexOf("Chrome") === -1) {
+    browser = "Safari";
+  } else if (ua.indexOf("Firefox") !== -1) {
+    browser = "Firefox";
+  } else if (ua.indexOf("MSIE") !== -1 || !!(document as any).documentMode) {
+    browser = "IE";
+  }
+
+  return `${os} (${browser})`;
+}
+
 function uid() {
   return Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
 }
@@ -233,6 +266,8 @@ export async function resetUserDevice(id: string): Promise<void> {
   const user = users.find(u => u.id === id);
   if (!user) return;
   user.deviceId = "";
+  user.deviceName = "";
+  user.sessionToken = "";
   await writeKV(`wingobd_user_data_${id}`, JSON.stringify(user));
   saveUsersLocal(users.map(u => u.id === id ? user : u));
 }
@@ -362,6 +397,9 @@ export async function login(usernameInput: string, passwordInput: string, device
   // Set device ID if not already set (first login)
   if (!user.deviceId) {
     user.deviceId = deviceId;
+    user.deviceName = getDeviceName();
+  } else if (!user.deviceName) {
+    user.deviceName = getDeviceName();
   }
   user.sessionToken = sessionToken;
 
