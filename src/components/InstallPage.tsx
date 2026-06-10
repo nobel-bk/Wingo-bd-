@@ -91,16 +91,16 @@ export function InstallPage({ onInstalled }: Props) {
   return (
     <div style={{
       minHeight: "100vh",
-      background: "linear-gradient(135deg, #0a0d1a 0%, #0f1535 50%, #0a0d1a 100%)",
+      background: "var(--background)",
       display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
       padding: "1.5rem", position: "relative", overflow: "hidden",
     }}>
 
       {/* Ambient background blobs */}
       <div style={{ position:"absolute", top:"-20%", left:"-20%", width:"60vw", height:"60vw", borderRadius:"50%",
-        background:"radial-gradient(circle, rgba(91,94,244,0.15) 0%, transparent 70%)", pointerEvents:"none" }} />
+        background:"radial-gradient(circle, var(--primary-glow) 0%, transparent 70%)", pointerEvents:"none" }} />
       <div style={{ position:"absolute", bottom:"-15%", right:"-15%", width:"50vw", height:"50vw", borderRadius:"50%",
-        background:"radial-gradient(circle, rgba(13,197,193,0.12) 0%, transparent 70%)", pointerEvents:"none" }} />
+        background:"radial-gradient(circle, var(--accent-glow) 0%, transparent 70%)", pointerEvents:"none" }} />
 
       {/* Confetti particles */}
       {particles.map((p, i) => (
@@ -120,19 +120,19 @@ export function InstallPage({ onInstalled }: Props) {
           <div style={{ display:"flex", justifyContent:"center", marginBottom:"1.5rem" }}>
             <div style={{
               width:88, height:88, borderRadius:24,
-              background:"linear-gradient(135deg, #5b5ef4, #0dc5c1)",
+              background:"linear-gradient(135deg, var(--primary), var(--accent))",
               display:"flex", alignItems:"center", justifyContent:"center",
-              boxShadow:"0 12px 40px rgba(91,94,244,0.4)",
+              boxShadow:"0 12px 40px var(--primary-glow)",
               overflow:"hidden",
             }}>
               <img src="/icon-512.png" alt="Signal Hub" style={{ width:"100%", height:"100%", objectFit:"cover" }} />
             </div>
           </div>
 
-          <h1 style={{ fontSize:"1.75rem", fontWeight:900, color:"#fff", letterSpacing:"-0.03em", marginBottom:"0.5rem" }}>
+          <h1 style={{ fontSize:"1.75rem", fontWeight:900, color:"var(--foreground)", letterSpacing:"-0.03em", marginBottom:"0.5rem" }}>
             Signal Hub
           </h1>
-          <p style={{ fontSize:13, color:"rgba(255,255,255,0.5)", marginBottom:"2rem", fontWeight:500 }}>
+          <p style={{ fontSize:13, color:"var(--muted-foreground)", marginBottom:"2rem", fontWeight:500 }}>
             Premium Prediction Terminal
           </p>
 
@@ -140,11 +140,11 @@ export function InstallPage({ onInstalled }: Props) {
           <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"0.75rem", marginBottom:"2rem" }}>
             {features.map((f, i) => (
               <div key={i} style={{
-                background:"rgba(255,255,255,0.05)", border:"1px solid rgba(255,255,255,0.08)",
+                background:"var(--surface-2)", border:"1.5px solid var(--border)",
                 borderRadius:12, padding:"0.85rem 0.75rem", display:"flex", alignItems:"center", gap:"0.6rem",
               }}>
                 <span style={{ fontSize:20 }}>{f.icon}</span>
-                <span style={{ fontSize:12, fontWeight:600, color:"rgba(255,255,255,0.75)", textAlign:"left" }}>{f.label}</span>
+                <span style={{ fontSize:12, fontWeight:600, color:"var(--foreground-soft)", textAlign:"left" }}>{f.label}</span>
               </div>
             ))}
           </div>
@@ -153,9 +153,9 @@ export function InstallPage({ onInstalled }: Props) {
           {isIOS() ? (
             <button onClick={handleIOSInstall} style={{
               width:"100%", padding:"1rem", borderRadius:14, border:"none", cursor:"pointer",
-              background:"linear-gradient(135deg, #5b5ef4, #0dc5c1)",
+              background:"linear-gradient(135deg, var(--primary), var(--accent))",
               color:"#fff", fontSize:15, fontWeight:800, letterSpacing:"-0.01em",
-              boxShadow:"0 8px 30px rgba(91,94,244,0.4)",
+              boxShadow:"0 8px 30px var(--primary-glow)",
               transition:"transform 0.15s ease, box-shadow 0.15s ease",
             }}
               onMouseDown={e => (e.currentTarget.style.transform = "scale(0.97)")}
@@ -166,9 +166,9 @@ export function InstallPage({ onInstalled }: Props) {
           ) : (
             <button onClick={handleAndroidInstall} style={{
               width:"100%", padding:"1rem", borderRadius:14, border:"none", cursor:"pointer",
-              background:"linear-gradient(135deg, #5b5ef4, #0dc5c1)",
+              background:"linear-gradient(135deg, var(--primary), var(--accent))",
               color:"#fff", fontSize:15, fontWeight:800, letterSpacing:"-0.01em",
-              boxShadow:"0 8px 30px rgba(91,94,244,0.4)",
+              boxShadow:"0 8px 30px var(--primary-glow)",
               transition:"transform 0.15s ease",
             }}
               onMouseDown={e => (e.currentTarget.style.transform = "scale(0.97)")}
@@ -178,7 +178,7 @@ export function InstallPage({ onInstalled }: Props) {
             </button>
           )}
 
-          <p style={{ fontSize:11, color:"rgba(255,255,255,0.3)", marginTop:"1rem" }}>
+          <p style={{ fontSize:11, color:"var(--muted-foreground)", marginTop:"1rem" }}>
             No App Store required · Instant install
           </p>
         </div>
@@ -188,10 +188,10 @@ export function InstallPage({ onInstalled }: Props) {
       {step === "ios-guide" && (
         <div className="glass-panel fade-up" style={{ width:"100%", maxWidth:400, padding:"2rem", textAlign:"center" }}>
           <div style={{ fontSize:48, marginBottom:"1rem" }}>📱</div>
-          <h2 style={{ fontSize:"1.3rem", fontWeight:800, color:"#fff", marginBottom:"0.5rem" }}>
+          <h2 style={{ fontSize:"1.3rem", fontWeight:800, color:"var(--foreground)", marginBottom:"0.5rem" }}>
             Add to Home Screen
           </h2>
-          <p style={{ fontSize:12.5, color:"rgba(255,255,255,0.5)", marginBottom:"1.75rem" }}>
+          <p style={{ fontSize:12.5, color:"var(--muted-foreground)", marginBottom:"1.75rem" }}>
             Follow these steps to install Signal Hub on your iPhone/iPad
           </p>
 
@@ -203,22 +203,22 @@ export function InstallPage({ onInstalled }: Props) {
           ].map((s) => (
             <div key={s.step} style={{
               display:"flex", alignItems:"center", gap:"1rem",
-              background:"rgba(255,255,255,0.05)", borderRadius:12,
+              background:"var(--surface-2)", border:"1.5px solid var(--border)",
               padding:"0.85rem 1rem", marginBottom:"0.65rem", textAlign:"left",
+              borderRadius:12,
             }}>
               <div style={{
                 minWidth:32, height:32, borderRadius:"50%",
-                background:"linear-gradient(135deg, #5b5ef4, #0dc5c1)",
+                background:"linear-gradient(135deg, var(--primary), var(--accent))",
                 display:"flex", alignItems:"center", justifyContent:"center",
                 fontSize:13, fontWeight:800, color:"#fff",
               }}>{s.step}</div>
-              <span style={{ fontSize:13, color:"rgba(255,255,255,0.75)", fontWeight:500 }}>{s.icon} {s.text}</span>
+              <span style={{ fontSize:13, color:"var(--foreground-soft)", fontWeight:500 }}>{s.icon} {s.text}</span>
             </div>
           ))}
 
-          <button onClick={() => setStep("prompt")} style={{
-            marginTop:"1.25rem", background:"transparent", border:"1.5px solid rgba(255,255,255,0.15)",
-            color:"rgba(255,255,255,0.5)", borderRadius:10, padding:"0.7rem 1.5rem",
+          <button onClick={() => setStep("prompt")} className="pill-button" style={{
+            marginTop:"1.25rem", padding:"0.7rem 1.5rem",
             fontSize:13, cursor:"pointer",
           }}>
             ← Back
@@ -229,24 +229,24 @@ export function InstallPage({ onInstalled }: Props) {
       {/* ── INSTALLING STEP ── */}
       {step === "installing" && (
         <div className="glass-panel fade-up" style={{ width:"100%", maxWidth:360, padding:"2.5rem 2rem", textAlign:"center" }}>
-          <div style={{ fontSize:56, marginBottom:"1.25rem", animation:"spin 1.5s linear infinite" }}>⚡</div>
-          <h2 style={{ fontSize:"1.4rem", fontWeight:800, color:"#fff", marginBottom:"0.5rem" }}>
+          <div style={{ fontSize:56, marginBottom:"1.25rem", animation:"spin 1.5s linear infinite", display:"inline-block" }}>⚡</div>
+          <h2 style={{ fontSize:"1.4rem", fontWeight:800, color:"var(--foreground)", marginBottom:"0.5rem" }}>
             Installing…
           </h2>
-          <p style={{ fontSize:13, color:"rgba(255,255,255,0.4)", marginBottom:"2rem" }}>
+          <p style={{ fontSize:13, color:"var(--muted-foreground)", marginBottom:"2rem" }}>
             Setting up Signal Hub on your device
           </p>
 
           {/* Progress bar */}
-          <div style={{ background:"rgba(255,255,255,0.08)", borderRadius:99, height:8, overflow:"hidden", marginBottom:"1rem" }}>
+          <div style={{ background:"var(--primary-light)", borderRadius:99, height:8, overflow:"hidden", marginBottom:"1rem" }}>
             <div style={{
               height:"100%", borderRadius:99, transition:"width 0.3s ease",
-              background:"linear-gradient(90deg, #5b5ef4, #0dc5c1)",
+              background:"linear-gradient(90deg, var(--primary), var(--accent))",
               width:`${progress}%`,
-              boxShadow:"0 0 12px rgba(91,94,244,0.6)",
+              boxShadow:"0 0 12px var(--primary-glow)",
             }} />
           </div>
-          <p style={{ fontSize:13, fontWeight:700, color:"#5b5ef4" }}>{Math.round(progress)}%</p>
+          <p style={{ fontSize:13, fontWeight:700, color:"var(--primary)" }}>{Math.round(progress)}%</p>
         </div>
       )}
 
@@ -255,19 +255,21 @@ export function InstallPage({ onInstalled }: Props) {
         <div className="glass-panel fade-up" style={{ width:"100%", maxWidth:360, padding:"2.5rem 2rem", textAlign:"center" }}>
           <div style={{
             width:80, height:80, borderRadius:"50%",
-            background:"linear-gradient(135deg, #22c55e, #0dc5c1)",
+            background:"linear-gradient(135deg, var(--green), var(--accent))",
             display:"flex", alignItems:"center", justifyContent:"center",
             margin:"0 auto 1.5rem",
-            boxShadow:"0 0 40px rgba(34,197,94,0.4)",
+            boxShadow:"0 0 40px var(--green-glow)",
             fontSize:36,
+            color:"#fff",
+            fontWeight:"bold",
             animation:"popIn 0.5s cubic-bezier(0.34,1.56,0.64,1)",
           }}>
             ✓
           </div>
-          <h2 style={{ fontSize:"1.5rem", fontWeight:900, color:"#fff", marginBottom:"0.5rem" }}>
+          <h2 style={{ fontSize:"1.5rem", fontWeight:900, color:"var(--foreground)", marginBottom:"0.5rem" }}>
             Installed! 🎉
           </h2>
-          <p style={{ fontSize:13, color:"rgba(255,255,255,0.5)" }}>
+          <p style={{ fontSize:13, color:"var(--muted-foreground)" }}>
             Launching Signal Hub…
           </p>
         </div>
