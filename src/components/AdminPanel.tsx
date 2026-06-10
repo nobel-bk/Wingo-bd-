@@ -5,6 +5,7 @@ import {
   fetchUsersFromCloud, resetUserDevice,
   type User,
 } from "../lib/auth";
+import { supabase } from "../lib/supabase";
 
 const PLAN_LABELS = { daily: "Daily (24h)", weekly: "Weekly (7d)", monthly: "Monthly (30d)" };
 
@@ -58,13 +59,34 @@ export function AdminPanel({ onLogout }: { onLogout: () => void }) {
     const time = () => new Date().toLocaleTimeString("en-GB");
     setLogs([
       `[${time()}] 📡 Signal Hub Admin Console booted`,
-      `[${time()}] 🔒 Syncing cloud database…`,
+      `[${time()}] 🔒 Syncing Supabase database…`,
     ]);
+
+    // Initial fetch
     fetchUsersFromCloud().then((cloudUsers) => {
       setUsers(cloudUsers);
       setLoading(false);
-      setLogs((prev) => [`[${time()}] ✅ Synced ${cloudUsers.length} clients from cloud`, ...prev]);
+      setLogs((prev) => [`[${time()}] ✅ Synced ${cloudUsers.length} clients from Supabase`, ...prev]);
     });
+
+    // Real-time subscription — any change in 'users' table auto-refreshes the list
+    const channel = supabase
+      .channel('admin-users-realtime')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'users' }, (payload) => {
+        const t = new Date().toLocaleTimeString("en-GB");
+        fetchUsersFromCloud().then((updated) => {
+          setUsers(updated);
+          const evt = payload.eventType;
+          const msg =
+            evt === 'INSERT' ? `➕ New user registered` :
+            evt === 'DELETE' ? `🗑 User removed` :
+            `🔄 User data updated`;
+          setLogs((prev) => [`[${t}] ${msg} (realtime)`, ...prev].slice(0, 20));
+        });
+      })
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
   }, []);
 
   const addLog = (msg: string) => {
