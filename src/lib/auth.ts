@@ -212,13 +212,29 @@ export async function fetchUsersFromCloud(): Promise<User[]> {
 
 // ─── Admin password ───────────────────────────────────────────────────────────
 export function getAdminPassword(): string {
+  // Local cache — source of truth is cloud (see fetchAdminPassword)
   return localStorage.getItem(ADMIN_PASS_KEY) ?? DEFAULT_ADMIN_PASSWORD;
 }
-export function setAdminPassword(newPass: string) {
-  localStorage.setItem(ADMIN_PASS_KEY, newPass);
+export async function fetchAdminPassword(): Promise<string> {
+  try {
+    const cloudPass = await Promise.race([
+      readKV("wingobd_admin_pass"),
+      new Promise<null>((resolve) => setTimeout(() => resolve(null), 5000)),
+    ]);
+    if (cloudPass && cloudPass.trim() !== "") {
+      localStorage.setItem(ADMIN_PASS_KEY, cloudPass); // cache locally
+      return cloudPass;
+    }
+  } catch { /* fall through */ }
+  return localStorage.getItem(ADMIN_PASS_KEY) ?? DEFAULT_ADMIN_PASSWORD;
 }
-export function checkAdminPassword(pass: string): boolean {
-  return pass === getAdminPassword() || pass === DEFAULT_ADMIN_PASSWORD;
+export async function setAdminPassword(newPass: string): Promise<void> {
+  localStorage.setItem(ADMIN_PASS_KEY, newPass);
+  await writeKV("wingobd_admin_pass", newPass);
+}
+export async function checkAdminPassword(pass: string): Promise<boolean> {
+  const stored = await fetchAdminPassword();
+  return pass === stored || pass === DEFAULT_ADMIN_PASSWORD;
 }
 
 // ─── CRUD ────────────────────────────────────────────────────────────────────
@@ -355,9 +371,9 @@ export async function login(usernameInput: string, passwordInput: string, device
   const password = passwordInput.trim();
   if (!username || !password) return { ok: false, reason: "invalid" };
 
-  // ── Admin check
+  // ── Admin check (fetches password from cloud for cross-device sync)
   if (username.toLowerCase() === "admin") {
-    if (checkAdminPassword(password)) {
+    if (await checkAdminPassword(password)) {
       const session: Session = { type: "admin" };
       setSession(session);
       return { ok: true, role: "admin", session };
